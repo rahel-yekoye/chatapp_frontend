@@ -46,8 +46,10 @@ class SocketService {
   void resetListener() {
     isListenerSet = false; // Reset listener flag if needed
   }
+
+  // Dispose of the socket and reset listener
   void dispose() {
     socket.dispose();
-        resetListener(); // Ensure the listener is reset on dispose
+    resetListener(); // Ensure the listener is reset on dispose
   }
 }

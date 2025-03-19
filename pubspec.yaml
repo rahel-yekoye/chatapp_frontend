@@ -11,6 +11,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  uuid: ^3.0.6 # Add this line to include the uuid package
 
   # Add HTTP package to connect to backend
   http: ^1.2.0  # You can check for latest version on pub.dev if needed

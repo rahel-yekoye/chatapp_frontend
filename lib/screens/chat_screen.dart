@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart'; // For smooth scrolling
 import '../models/message.dart';
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
@@ -24,6 +23,7 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Message> messages = [];
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  bool isListenerRegistered = false; // Flag for listener registration
 
   @override
   void initState() {
@@ -34,41 +34,45 @@ class _ChatScreenState extends State<ChatScreen> {
     socketService.connect();
     socketService.registerUser(widget.currentUser);
 
-    // ✅ Listen for real-time messages
-    socketService.onMessageReceived((data) {
-      print("📨 Real-time message received: $data");
-      Message incomingMessage = Message.fromJson(data);
+    // Register the listener only once
+    if (!isListenerRegistered) {
+      socketService.onMessageReceived((data) {
+        print("📨 Real-time message received: $data");
+        Message incomingMessage = Message.fromJson(data);
 
-      // Avoid duplicates and check if relevant to this chat
-      if (!messages.any((msg) =>
-          msg.sender == incomingMessage.sender &&
-          msg.receiver == incomingMessage.receiver &&
-          msg.content == incomingMessage.content)) {
-        setState(() {
-          messages.add(incomingMessage);
-        });
-        _scrollToBottomSmooth();
-      }
-    });
+        // Prevent adding the same message multiple times
+        if (!messages.any((msg) =>
+            msg.sender == incomingMessage.sender &&
+            msg.receiver == incomingMessage.receiver &&
+            msg.content == incomingMessage.content)) {
+          setState(() {
+            messages.add(incomingMessage);
+          });
+          _scrollToBottomSmooth();
+        } else {
+          print("Duplicate message ignored.");
+        }
+      });
+
+      isListenerRegistered = true;
+    }
   }
 
-  // Fetch chat history
+  // Fetch existing chat history (messages from the database)
   Future<void> fetchMessages() async {
-    final fetchedMessages =
-        await ApiService.getMessages(widget.currentUser, widget.otherUser);
+    final fetchedMessages = await ApiService.getMessages(widget.currentUser, widget.otherUser);
     print("📥 Fetched Messages: $fetchedMessages");
 
     setState(() {
       messages = fetchedMessages;
     });
 
-    // Scroll to bottom after rendering
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottomSmooth();
     });
   }
 
-  // Send message
+  // Sending message handler
   Future<void> sendMessage(String content) async {
     final messageData = {
       'sender': widget.currentUser,
@@ -76,28 +80,38 @@ class _ChatScreenState extends State<ChatScreen> {
       'content': content,
     };
 
+    // Optimistically update UI
+    final newMessage = Message.fromJson({
+      ...messageData,
+      'timestamp': DateTime.now().toIso8601String(), // Ensure timestamp exists
+    });
+
+    // Check if the message already exists in the list
+    if (!messages.any((msg) =>
+        msg.sender == newMessage.sender &&
+        msg.receiver == newMessage.receiver &&
+        msg.content == newMessage.content)) {
+      setState(() {
+        messages.add(newMessage);
+      });
+      _controller.clear();
+      _scrollToBottomSmooth();
+    } else {
+      print("Duplicate message ignored.");
+    }
+
+    // Send to backend (DB and real-time)
     bool success = await ApiService.sendMessage(
-        widget.currentUser, widget.otherUser, content);
+      widget.currentUser, widget.otherUser, content);
 
     if (success) {
-      socketService.sendMessage(messageData); // Real-time delivery
-
-      setState(() {
-        messages.add(Message.fromJson(messageData)); // Instant UI update
-      });
-
-      // ✅ Clear input field and scroll down
-      _controller.clear();
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        _scrollToBottomSmooth();
-      });
-
+      socketService.sendMessage(messageData);
     } else {
       print("❌ Failed to send message to API.");
     }
   }
 
-  // Smooth scroll to bottom
+  // Smooth scrolling function
   void _scrollToBottomSmooth() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -142,7 +156,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     child: Text(
                       msg.content,
-                      style: TextStyle(fontSize: 16),
+                      style: const TextStyle(fontSize: 16),
                     ),
                   ),
                 );
@@ -170,8 +184,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 IconButton(
                   icon: const Icon(Icons.send, color: Colors.blue),
                   onPressed: () {
-                    if (_controller.text.trim().isNotEmpty) {
-                      sendMessage(_controller.text.trim());
+                    final content = _controller.text.trim();
+                    if (content.isNotEmpty) {
+                      sendMessage(content);
                     }
                   },
                 ),
