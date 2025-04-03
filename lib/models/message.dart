@@ -2,7 +2,7 @@ class Message {
   final String sender;
   final String receiver;
   final String content;
-  final DateTime timestamp;
+  final String timestamp;
 
   Message({
     required this.sender,
@@ -11,23 +11,23 @@ class Message {
     required this.timestamp,
   });
 
-  // Factory constructor to create a Message object from JSON
+  // Factory method to create a Message object from JSON
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
-      sender: json['sender'],
-      receiver: json['receiver'],
-      content: json['content'],
-      timestamp: DateTime.parse(json['timestamp']),
+      sender: json['sender'] ?? 'Unknown', // Provide a default value
+      receiver: json['receiver'] ?? 'Unknown', // Provide a default value
+      content: json['content'] ?? '', // Provide a default value
+      timestamp: json['timestamp'] ?? '', // Provide a default value
     );
   }
 
-  // Convert Message object to JSON
+  // Method to convert a Message object to JSON
   Map<String, dynamic> toJson() {
     return {
       'sender': sender,
       'receiver': receiver,
       'content': content,
-      'timestamp': timestamp.toIso8601String(),
+      'timestamp': timestamp,
     };
   }
 }

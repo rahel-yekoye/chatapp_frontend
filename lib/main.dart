@@ -1,5 +1,6 @@
+import 'package:chat_app_flutter/home_page.dart';
 import 'package:flutter/material.dart';
-import 'home_page.dart'; // Import the HomePage you created
+import 'screens/register_screen.dart'; // Import the RegisterScreen
 
 void main() {
   runApp(const MyApp());
@@ -17,7 +18,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
         useMaterial3: true,
       ),
-      home: const HomePage(), // Set HomePage as initial screen
+      home: const HomePage(), // Set RegisterScreen as the initial screen
     );
   }
 }

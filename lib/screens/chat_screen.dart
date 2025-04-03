@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../models/message.dart';
 import '../services/api_service.dart';
 import '../services/socket_service.dart';
-
-late SocketService socketService;
+import '../screens/search_user_screen.dart'; // Corrected path to SearchUserScreen
 
 class ChatScreen extends StatefulWidget {
   final String currentUser;
   final String otherUser;
+  final String jwtToken; // Add jwtToken as a parameter
 
   const ChatScreen({
     super.key,
     required this.currentUser,
     required this.otherUser,
+    required this.jwtToken, // Add this line
   });
 
   @override
@@ -23,95 +27,79 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Message> messages = [];
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  bool isListenerRegistered = false; // Flag for listener registration
+  late SocketService socketService;
 
   @override
   void initState() {
     super.initState();
-    fetchMessages();
+    socketService = SocketService(); // Initialize the SocketService
+    socketService.connect(); // Connect to the socket server
+    fetchMessages(); // Fetch chat history when the screen is opened
+    _connectToSocket(); // Connect to the socket
+  }
 
-    socketService = SocketService();
-    socketService.connect();
-    socketService.registerUser(widget.currentUser);
+  void _connectToSocket() {
+    // Generate a unique roomId based on the two users
+    final roomId = widget.currentUser.compareTo(widget.otherUser) < 0
+        ? '${widget.currentUser}_${widget.otherUser}'
+        : '${widget.otherUser}_${widget.currentUser}';
 
-    // Register the listener only once
-    if (!isListenerRegistered) {
-      socketService.onMessageReceived((data) {
-        print("📨 Real-time message received: $data");
-        Message incomingMessage = Message.fromJson(data);
+    // Join the room
+    socketService.registerUser(roomId);
 
-        // Prevent adding the same message multiple times
-        if (!messages.any((msg) =>
-            msg.sender == incomingMessage.sender &&
-            msg.receiver == incomingMessage.receiver &&
-            msg.content == incomingMessage.content)) {
-          setState(() {
-            messages.add(incomingMessage);
-          });
-          _scrollToBottomSmooth();
-        } else {
-          print("Duplicate message ignored.");
-        }
-      });
+    // Listen for incoming messages
+    socketService.onMessageReceived((data) {
+      // Ignore messages sent by the current user (already handled by optimistic UI update)
+      if (data['sender'] != widget.currentUser) {
+        setState(() {
+          messages.add(Message.fromJson(data)); // Add the new message to the list
+        });
+      }
+    });
+  }
 
-      isListenerRegistered = true;
+  Future<void> fetchMessages() async {
+    final url = Uri.parse('http://localhost:3000/messages?user1=${widget.currentUser}&user2=${widget.otherUser}');
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          messages = data.map((json) => Message.fromJson(json)).toList();
+        });
+      } else {
+        print('Failed to fetch messages: ${response.body}');
+      }
+    } catch (error) {
+      print('Error fetching messages: $error');
     }
   }
 
-  // Fetch existing chat history (messages from the database)
-  Future<void> fetchMessages() async {
-    final fetchedMessages = await ApiService.getMessages(widget.currentUser, widget.otherUser);
-    print("📥 Fetched Messages: $fetchedMessages");
-
-    setState(() {
-      messages = fetchedMessages;
-    });
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollToBottomSmooth();
-    });
-  }
-
-  // Sending message handler
   Future<void> sendMessage(String content) async {
+    final roomId = widget.currentUser.compareTo(widget.otherUser) < 0
+        ? '${widget.currentUser}_${widget.otherUser}'
+        : '${widget.otherUser}_${widget.currentUser}';
+
     final messageData = {
+      'roomId': roomId,
       'sender': widget.currentUser,
       'receiver': widget.otherUser,
       'content': content,
+      'timestamp': DateTime.now().toIso8601String(),
     };
 
-    // Optimistically update UI
-    final newMessage = Message.fromJson({
-      ...messageData,
-      'timestamp': DateTime.now().toIso8601String(), // Ensure timestamp exists
+    // Emit the message
+    socketService.sendMessage(messageData);
+
+    // Optimistically update the UI
+    setState(() {
+      messages.add(Message.fromJson(messageData));
     });
 
-    // Check if the message already exists in the list
-    if (!messages.any((msg) =>
-        msg.sender == newMessage.sender &&
-        msg.receiver == newMessage.receiver &&
-        msg.content == newMessage.content)) {
-      setState(() {
-        messages.add(newMessage);
-      });
-      _controller.clear();
-      _scrollToBottomSmooth();
-    } else {
-      print("Duplicate message ignored.");
-    }
-
-    // Send to backend (DB and real-time)
-    bool success = await ApiService.sendMessage(
-      widget.currentUser, widget.otherUser, content);
-
-    if (success) {
-      socketService.sendMessage(messageData);
-    } else {
-      print("❌ Failed to send message to API.");
-    }
+    _controller.clear();
+    _scrollToBottomSmooth();
   }
 
-  // Smooth scrolling function
   void _scrollToBottomSmooth() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
@@ -124,7 +112,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
-    socketService.dispose();
+    socketService.resetListener(); // Reset the listener when the screen is disposed
     _controller.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -133,7 +121,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Chat with ${widget.otherUser}')),
+      appBar: AppBar(
+        title: Text('Chat with ${widget.otherUser}'), // Display the correct user
+      ),
       body: Column(
         children: [
           Expanded(
@@ -192,6 +182,20 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ],
             ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SearchUserScreen(
+                    loggedInUser: widget.currentUser,
+                    jwtToken: widget.jwtToken,
+                  ),
+                ),
+              );
+            },
+            child: Text('Search User'),
           ),
         ],
       ),
