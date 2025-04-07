@@ -40,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(
             builder: (context) => InboxScreen(
               currentUser: loggedInUser,
+              jwtToken: jwtToken, // Pass the token here
             ),
           ),
         );

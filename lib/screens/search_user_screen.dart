@@ -25,6 +25,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _searchUser() async {
     final phoneNumber = _phoneNumberController.text.trim();
+    print('Phone Number: $phoneNumber');
+    print('JWT Token: ${widget.jwtToken}');
     if (phoneNumber.isEmpty) {
       setState(() {
         _errorMessage = 'Please enter a phone number.';
@@ -43,6 +45,8 @@ class _SearchScreenState extends State<SearchScreen> {
           'Authorization': 'Bearer ${widget.jwtToken}',
         },
       );
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         setState(() {
@@ -141,6 +145,7 @@ class SearchUserScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    print('JWT Token being passed: $jwtToken');
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search User'),
@@ -148,12 +153,13 @@ class SearchUserScreen extends StatelessWidget {
       body: Center(
         child: ElevatedButton(
           onPressed: () {
+            // Ensure the correct token is passed here
             Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => SearchScreen(
                   loggedInUser: loggedInUser,
-                  jwtToken: jwtToken,
+                  jwtToken: jwtToken, // Pass the actual token here
                 ),
               ),
             );

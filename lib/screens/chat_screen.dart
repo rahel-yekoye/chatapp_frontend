@@ -183,20 +183,7 @@ class _ChatScreenState extends State<ChatScreen> {
               ],
             ),
           ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SearchUserScreen(
-                    loggedInUser: widget.currentUser,
-                    jwtToken: widget.jwtToken,
-                  ),
-                ),
-              );
-            },
-            child: Text('Search User'),
-          ),
+         
         ],
       ),
     );
