@@ -3,31 +3,41 @@ class Message {
   final String receiver;
   final String content;
   final String timestamp;
+  final bool isGroup;
+  final List<dynamic> emojis;
+  final String fileUrl;
 
   Message({
     required this.sender,
     required this.receiver,
     required this.content,
     required this.timestamp,
+    required this.isGroup,
+    required this.emojis,
+    required this.fileUrl,
   });
 
-  // Factory method to create a Message object from JSON
   factory Message.fromJson(Map<String, dynamic> json) {
     return Message(
-      sender: json['sender'] ?? 'Unknown', // Provide a default value
-      receiver: json['receiver'] ?? 'Unknown', // Provide a default value
-      content: json['content'] ?? '', // Provide a default value
-      timestamp: json['timestamp'] ?? '', // Provide a default value
+      sender: json['sender'],
+      receiver: json['receiver'],
+      content: json['content'] ?? '',
+      timestamp: json['timestamp'] ?? '',
+      isGroup: json['isGroup'] ?? false,
+      emojis: json['emojis'] ?? [],
+      fileUrl: json['fileUrl'] ?? '',
     );
   }
 
-  // Method to convert a Message object to JSON
   Map<String, dynamic> toJson() {
     return {
       'sender': sender,
       'receiver': receiver,
       'content': content,
       'timestamp': timestamp,
+      'isGroup': isGroup,
+      'emojis': emojis,
+      'fileUrl': fileUrl,
     };
   }
 }
